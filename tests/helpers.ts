@@ -109,7 +109,9 @@ export function createMockBasesEntry(file: TFile, properties: Record<string, any
 				isTruthy: () => !!value,
 				equals: () => false, // Stub implementation
 				looseEquals: () => false, // Stub implementation
-				renderTo: () => {}, // Stub implementation
+				renderTo: (el: HTMLElement, ctx: any) => {
+					el.textContent = String(value);
+				},
 			} as any; // Cast to any to satisfy Value interface requirements
 		},
 		getProperty: (propertyId: BasesPropertyId) => {

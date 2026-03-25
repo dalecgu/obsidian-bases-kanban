@@ -98,3 +98,7 @@ export function parsePropertyId(propertyId: BasesPropertyId): { name: string; so
 		name: propertyId,
 	};
 }
+
+export class RenderContext {
+	hoverPopover: null = null;
+}

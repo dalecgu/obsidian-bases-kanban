@@ -1,5 +1,5 @@
 import type { BasesEntry, BasesPropertyId, QueryController, ViewOption } from 'obsidian';
-import { BasesView, parsePropertyId } from 'obsidian';
+import { BasesView, parsePropertyId, RenderContext } from 'obsidian';
 import Sortable from 'sortablejs';
 import {
 	COLOR_PALETTE,
@@ -35,6 +35,7 @@ export class KanbanView extends BasesView {
 	private columnSortable: Sortable | null = null;
 	private _debouncedRender: DebouncedFn<() => void>;
 	private activeColorPicker: HTMLElement | null = null;
+	private _renderContext: RenderContext | null = null;
 
 	constructor(controller: QueryController, scrollEl: HTMLElement, plugin: KanbanPlugin) {
 		super(controller);
@@ -301,6 +302,20 @@ export class KanbanView extends BasesView {
 		return columnEl;
 	}
 
+	/**
+	 * Get or create a cached RenderContext for rendering values
+	 * This avoids creating a new context for every property on every card
+	 */
+	private getRenderContext(): RenderContext {
+		if (!this._renderContext) {
+			this._renderContext = new RenderContext();
+			if (this.app) {
+				Object.assign(this._renderContext, { app: this.app });
+			}
+		}
+		return this._renderContext;
+	}
+
 	private createCard(entry: BasesEntry): HTMLElement {
 		const cardEl = document.createElement('div');
 		cardEl.className = CSS_CLASSES.CARD;
@@ -322,7 +337,14 @@ export class KanbanView extends BasesView {
 			const label = this.config?.getDisplayName(propertyId) ?? propertyId;
 			const propertyEl = cardEl.createDiv({ cls: CSS_CLASSES.CARD_PROPERTY });
 			propertyEl.createSpan({ text: label, cls: CSS_CLASSES.CARD_PROPERTY_LABEL });
-			propertyEl.createSpan({ text: valueStr, cls: CSS_CLASSES.CARD_PROPERTY_VALUE });
+			const valueEl = propertyEl.createSpan({ cls: CSS_CLASSES.CARD_PROPERTY_VALUE });
+			// Render value using Obsidian's renderTo with the app context
+			if (this.app && typeof value.renderTo === 'function') {
+				value.renderTo(valueEl, this.getRenderContext());
+			} else {
+				// Fallback to plain text if renderTo is not available
+				valueEl.textContent = valueStr;
+			}
 		}
 
 		// Make card clickable to open the note
@@ -578,6 +600,9 @@ export class KanbanView extends BasesView {
 			this.columnSortable.destroy();
 			this.columnSortable = null;
 		}
+
+		// Clean up cached render context
+		this._renderContext = null;
 	}
 
 	static getViewOptions(this: void): ViewOption[] {
