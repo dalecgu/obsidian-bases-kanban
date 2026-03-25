@@ -29,6 +29,7 @@ export class KanbanView extends BasesView {
 	containerEl: HTMLElement;
 	private plugin: KanbanPlugin;
 	private groupByPropertyId: BasesPropertyId | null = null;
+	private titlePropertyId: BasesPropertyId | null = null;
 	private _renderedGroupByPropertyId: BasesPropertyId | null = null;
 	private _columnSortables: Map<string, Sortable> = new Map();
 	private _entryMap: Map<string, BasesEntry> = new Map();
@@ -59,6 +60,7 @@ export class KanbanView extends BasesView {
 	private loadConfig(): void {
 		// Load group by property from config
 		this.groupByPropertyId = this.config.getAsPropertyId('groupByProperty');
+		this.titlePropertyId = this.config.getAsPropertyId('titleProperty');
 	}
 
 	private render(): void {
@@ -322,9 +324,35 @@ export class KanbanView extends BasesView {
 		const filePath = entry.file.path;
 		cardEl.setAttribute(DATA_ATTRIBUTES.ENTRY_PATH, filePath);
 
-		// Card title - use file basename
+		// Determine title from configured property or fallback to file basename
 		const titleEl = cardEl.createDiv({ cls: CSS_CLASSES.CARD_TITLE });
-		titleEl.textContent = entry.file.basename;
+
+		let titleRendered = false;
+		if (this.titlePropertyId) {
+			try {
+				const titleValue = entry.getValue(this.titlePropertyId);
+				if (titleValue !== null && titleValue !== undefined) {
+					const titleStr = titleValue.toString().trim();
+					if (titleStr && titleStr !== 'null') {
+						// Use renderTo for rich text (Markdown) support
+						if (this.app && typeof titleValue.renderTo === 'function') {
+							titleValue.renderTo(titleEl, this.getRenderContext());
+							titleRendered = true;
+						} else {
+							titleEl.textContent = titleStr;
+							titleRendered = true;
+						}
+					}
+				}
+			} catch (error) {
+				console.warn('Error reading title property:', error);
+			}
+		}
+
+		// Fallback to filename if no title configured or property value is empty
+		if (!titleRendered) {
+			titleEl.textContent = entry.file.basename;
+		}
 
 		// Card properties
 		const order = this.config?.getOrder() ?? [];
@@ -613,6 +641,13 @@ export class KanbanView extends BasesView {
 				key: 'groupByProperty',
 				filter: (prop: string) => !prop.startsWith('file.'),
 				placeholder: 'Select property',
+			},
+			{
+				displayName: 'Card title',
+				type: 'property',
+				key: 'titleProperty',
+				filter: (prop: string) => !prop.startsWith('file.'),
+				placeholder: 'Use filename (default)',
 			},
 		];
 	}
